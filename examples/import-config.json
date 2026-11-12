@@ -1,0 +1,35 @@
+{
+  "accounts": [
+    {"id": "everyday", "name": "Everyday", "type": "checking"},
+    {"id": "rainy-day", "name": "Rainy Day", "type": "savings"}
+  ],
+  "balance_check": "strict",
+  "sheets": [
+    {
+      "source": "workbook.ods",
+      "sheet": "2025",
+      "account": "everyday",
+      "year": 2025,
+      "start_row": 3,
+      "opening": "H1",
+      "columns": {
+        "num": "A",
+        "date": "B",
+        "description": "C",
+        "debit": "D",
+        "cleared": "E",
+        "credit": "F",
+        "balance": "H",
+        "note": ["I", "J"]
+      }
+    },
+    {
+      "source": "workbook.ods",
+      "sheet": "Rainy Day",
+      "account": "rainy-day",
+      "start_row": 2,
+      "opening": "C1",
+      "columns": {"date": "A", "amount": "B", "balance": "C", "description": "D"}
+    }
+  ]
+}

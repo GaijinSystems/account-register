@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="$csrf">
+<title>Register</title>
+<script src="/static/theme.js"></script>
+<link rel="stylesheet" href="/static/grid.css">
+<script src="/static/grid.js" defer></script>
+</head>
+<body class="app">
+<div id="banner" class="banner hidden" role="alert"></div>
+<header class="toolbar">
+  <h1 class="app-title">Register</h1>
+  <span id="sheet-title" class="sheet-title"></span>
+  <button id="btn-insert" type="button" title="Insert a row above the selected row (Ctrl+Enter)">Insert row</button>
+  <button id="btn-delete" type="button" title="Delete the selected row (Ctrl+Shift+Delete)">Delete row</button>
+  <button id="btn-sign" type="button" class="sign-btn hidden"></button>
+  <span id="save-status" class="save-status" aria-live="polite"></span>
+  <button id="btn-retry" type="button" class="hidden">Retry</button>
+  <button id="btn-discard" type="button" class="hidden">Discard</button>
+  <span class="spacer"></span>
+  <span id="last-modified" class="last-modified"></span>
+  <span class="spacer"></span>
+  <button id="btn-export" type="button" title="Download every sheet as CSV (asks for the password)">Export</button>
+  <button id="btn-theme" type="button" title="Switch between dark and light mode"></button>
+  <button id="btn-security" type="button" title="Change the password, or log out everywhere">Security…</button>
+  <button id="btn-help" type="button" title="Keyboard shortcuts (F1)" aria-label="Keyboard shortcuts">?</button>
+  <button id="btn-logout" type="button">Log out</button>
+</header>
+<section class="cellbar" aria-label="Selected cell and tools"><span id="cell-ref" class="cell-ref"></span><span id="cell-value" class="cell-value"></span>
+  <button id="btn-history" type="button" title="What changed in this sheet, and undo">History…</button>
+  <button id="btn-reports" type="button" title="Income and spending by month, category and description">Reports…</button>
+  <button id="btn-recurring" type="button" title="Transactions that repeat: enter the ones that are due">Recurring…</button>
+  <button id="btn-reconcile" type="button" title="Check this sheet against a bank statement">Reconcile…</button>
+  <button id="btn-search" type="button" title="Find rows by text, amount or date, across every year (Ctrl+F)">Search…</button>
+  <button id="btn-transfer" type="button" title="Move money between two accounts: one linked row in each">Transfer…</button>
+</section>
+<section id="reconbar" class="reconbar hidden" aria-label="Reconciling" aria-live="polite">
+  <b>Reconciling.</b> Tick X on each row that is on the statement (click it, or press Space).
+  <span>Statement <b id="recon-statement"></b></span>
+  <span>Cleared <b id="recon-cleared"></b></span>
+  <span>Difference <b id="recon-diff"></b></span>
+  <span class="spacer"></span>
+  <button id="recon-cancel" type="button">Cancel</button>
+  <button id="recon-finish" type="button">Finish</button>
+</section>
+<p id="print-title" class="print-title"></p>
+<main id="grid-wrap" class="grid-wrap"><table id="grid" class="grid" role="grid" tabindex="0" aria-label="Register"></table>
+  <ul id="rows" class="rows" aria-label="Rows"></ul>
+  <button id="btn-add-row" type="button" class="add-row">+ Add row</button><p id="empty" class="empty hidden">No accounts yet. Use <b>+ Account</b> below to create one.</p></main>
+<nav id="tabs" class="tabs" aria-label="Sheets"></nav>
+<ul id="suggest" class="suggest hidden" role="listbox" aria-label="Earlier entries"></ul>
+<dialog id="dlg-account">
+  <form id="form-account">
+    <h2>New account</h2>
+    <label>Name <input name="name" required maxlength="60" autocomplete="off"></label>
+    <label>Type
+      <select name="type"></select>
+    </label>
+    <label><span id="opening-text">Opening balance</span>
+      <input name="opening" inputmode="decimal" placeholder="0.00" autocomplete="off"></label>
+    <label id="year-label">First year <input name="year" inputmode="numeric" maxlength="4" autocomplete="off"></label>
+    <p id="account-error" class="dlg-error hidden"></p>
+    <div class="dlg-buttons">
+      <button type="button" id="account-cancel">Cancel</button>
+      <button type="submit">Create</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="dlg-row">
+  <form id="form-row">
+    <h2 id="row-title">Row</h2>
+    <label>Date <input name="date" autocomplete="off" placeholder="MM/DD/YYYY" inputmode="numeric"></label>
+    <label>Description <input name="description" maxlength="200" autocomplete="off" list="list-payees"></label>
+    <label>Category <input name="category" maxlength="60" autocomplete="off" list="list-categories"></label>
+    <label>Amount <input name="amount" autocomplete="off" inputmode="decimal"></label>
+    <p id="row-amount-hint" class="dlg-note"></p>
+    <label class="check"><input name="cleared" type="checkbox"> Cleared (X)</label>
+    <label>Num <input name="num" maxlength="20" autocomplete="off"></label>
+    <label>Note <input name="note" maxlength="500" autocomplete="off"></label>
+    <p id="row-error" class="dlg-error hidden" role="alert"></p>
+    <div class="dlg-buttons">
+      <button type="button" id="row-delete">Delete</button>
+      <span class="spacer"></span>
+      <button type="button" id="row-cancel">Cancel</button>
+      <button type="submit" id="row-save">Save</button>
+    </div>
+  </form>
+  <datalist id="list-payees"></datalist>
+  <datalist id="list-categories"></datalist>
+</dialog>
+<dialog id="dlg-help">
+  <h2>Keyboard shortcuts</h2>
+  <table class="keys">
+    <tr><th>Arrow keys</th><td>Move between cells</td></tr>
+    <tr><th>Tab, Shift+Tab</th><td>Move right, left</td></tr>
+    <tr><th>Enter, Shift+Enter</th><td>Move down, up; while typing, finish the cell first</td></tr>
+    <tr><th>Home, End</th><td>First, last column</td></tr>
+    <tr><th>Ctrl+Home, Ctrl+End</th><td>First cell, last cell</td></tr>
+    <tr><th>Ctrl+Up, Ctrl+Down</th><td>First row, last row</td></tr>
+    <tr><th>Page Up, Page Down</th><td>Twenty rows up, down</td></tr>
+    <tr><th>Any character</th><td>Replace the cell and start typing</td></tr>
+    <tr><th>F2, double-click</th><td>Edit the cell</td></tr>
+    <tr><th>Esc</th><td>Cancel the edit, or close a list or dialog</td></tr>
+    <tr><th>Delete, Backspace</th><td>Clear the cell</td></tr>
+    <tr><th>Space</th><td>Tick or untick X</td></tr>
+    <tr><th>Down, Up while typing</th><td>Choose from the earlier descriptions or categories</td></tr>
+    <tr><th>Ctrl+Enter</th><td>Insert a row above</td></tr>
+    <tr><th>Ctrl+Shift+Delete</th><td>Delete the row</td></tr>
+    <tr><th>Ctrl+C, Ctrl+V</th><td>Copy, paste one cell</td></tr>
+    <tr><th>Ctrl+F</th><td>Search</td></tr>
+    <tr><th>F6</th><td>Round from the grid to the buttons above it, to the sheet tabs below it, and back.
+      Among the buttons or the tabs, Tab and Shift+Tab move; Esc returns to the grid</td></tr>
+    <tr><th>F1, or ?</th><td>This list. F1 works everywhere; on a text cell ? is typed</td></tr>
+  </table>
+  <p class="dlg-note">A row is saved when you leave it. On a Mac, use Cmd in place of Ctrl.</p>
+  <div class="dlg-buttons"><button type="button" id="help-close">Close</button></div>
+</dialog>
+<dialog id="dlg-history" class="wide">
+  <h2 id="history-title">History</h2>
+  <p class="dlg-note wide">The latest changes to this sheet, newest first. <b>Undo</b> puts the old values back as a new
+    change; nothing is ever removed from the history. It is offered only while the rows involved are still as that
+    change left them.</p>
+  <p id="history-error" class="dlg-error hidden" role="alert"></p>
+  <ol id="history-list" class="history" tabindex="0" aria-label="Changes, newest first"></ol>
+  <div class="dlg-buttons">
+    <span id="history-more" class="dlg-count"></span>
+    <button type="button" id="history-close">Close</button>
+  </div>
+</dialog>
+<dialog id="dlg-reports" class="wide report">
+  <h2>Reports</h2>
+  <div class="report-filters">
+    <label>Year <select id="report-year"></select></label>
+    <label>Account <select id="report-account"></select></label>
+    <span class="spacer"></span>
+    <button type="button" id="reports-close">Close</button>
+  </div>
+  <p id="report-error" class="dlg-error hidden" role="alert"></p>
+  <div id="report-body">
+    <div class="tiles">
+      <div class="tile"><div class="label">Income</div><div class="value" id="report-income"></div></div>
+      <div class="tile"><div class="label">Spending</div><div class="value" id="report-spending"></div></div>
+      <div class="tile"><div class="label">Income less spending</div><div class="value" id="report-net"></div></div>
+    </div>
+    <h3>Income and spending by month</h3>
+    <p class="legend"><span><i class="s1"></i>Income</span><span><i class="s2"></i>Spending</span></p>
+    <svg id="report-months" class="chart" role="group" aria-label="Income and spending by month"></svg>
+    <details><summary>Table</summary>
+      <table><thead><tr><th>Month</th><th>Income</th><th>Spending</th><th>Income less spending</th></tr></thead>
+        <tbody id="report-month-rows"></tbody></table>
+    </details>
+    <h3>Spending by category</h3>
+    <dl id="report-categories" class="ranked"></dl>
+    <h3>Spending by description</h3>
+    <dl id="report-payees" class="ranked"></dl>
+    <p class="dlg-note wide">Transfers between your accounts are left out, as are rows without a date. A refund
+      reduces the spending of its category and description.</p>
+  </div>
+  <div id="tip" class="tip hidden" role="tooltip"></div>  <!-- inside the dialog: a modal covers everything else -->
+</dialog>
+<dialog id="dlg-settings">
+  <form id="form-settings">
+    <h2>Account settings</h2>
+    <label>Name <input name="name" required maxlength="60" autocomplete="off"></label>
+    <label class="check"><input name="owed" type="checkbox"> Show what is owed as positive</label>
+    <p class="dlg-note">For credit cards and loans: charges and the balance owed show as positive numbers, and you
+      type them that way. Only the display changes; stored amounts and the CSV export keep charges negative.</p>
+    <p id="settings-error" class="dlg-error hidden" role="alert"></p>
+    <div class="dlg-buttons">
+      <button type="button" id="settings-cancel">Cancel</button>
+      <button type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="dlg-recurring" class="wide">
+  <h2>Recurring transactions</h2>
+  <p class="dlg-note wide">A recurring transaction is entered only when you press Enter here; nothing is added on its own.
+    Entering adds a row for each date that has come due, at the end of the account's sheet.</p>
+  <div id="recurring-list" class="results">
+    <table><thead><tr><th>Description</th><th>Account</th><th class="num">Amount</th><th>Every</th><th>Next</th>
+      <th>Due</th><th></th></tr></thead><tbody id="recurring-rows"></tbody></table>
+  </div>
+  <p id="recurring-none" class="dlg-count hidden">None yet. Add one below.</p>
+  <form id="form-recurring">
+    <h3>Add</h3>
+    <div class="dlg-row">
+      <label>Account <select name="account"></select></label>
+      <label class="grow">Description <input name="description" required maxlength="200" autocomplete="off"></label>
+      <label>Category <input name="category" maxlength="60" autocomplete="off"></label>
+    </div>
+    <div class="dlg-row">
+      <label>Amount <input name="amount" required inputmode="decimal" autocomplete="off" placeholder="-84.12 is money out"></label>
+      <label>Every <select name="every">
+        <option value="week">week</option><option value="2weeks">two weeks</option>
+        <option value="month" selected>month</option><option value="quarter">three months</option>
+        <option value="year">year</option></select></label>
+      <label>First date <input name="start" required autocomplete="off" placeholder="MM/DD/YYYY"></label>
+      <label class="grow">Note <input name="note" maxlength="500" autocomplete="off"></label>
+    </div>
+    <p id="recurring-error" class="dlg-error hidden" role="alert"></p>
+    <div class="dlg-buttons">
+      <button type="button" id="recurring-enter" class="hidden"></button>
+      <span class="spacer"></span>
+      <button type="button" id="recurring-close">Close</button>
+      <button type="submit" id="recurring-add">Add</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="dlg-reconcile">
+  <form id="form-reconcile">
+    <h2>Reconcile</h2>
+    <p class="dlg-note">Enter the ending balance from the statement. Then tick the rows that appear on it until
+      the difference is zero. The ticks are saved together when you press Finish.</p>
+    <label>Statement ending balance <input name="balance" required inputmode="decimal" autocomplete="off"></label>
+    <p id="reconcile-error" class="dlg-error hidden" role="alert"></p>
+    <div class="dlg-buttons">
+      <button type="button" id="reconcile-cancel">Cancel</button>
+      <button type="submit">Start</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="dlg-search" class="wide">
+  <form id="form-search">
+    <h2>Search</h2>
+    <div class="dlg-row">
+      <label class="grow">Text <input name="text" maxlength="200" autocomplete="off"
+          placeholder="description, category, note or number"></label>
+      <label>In <select name="scope"><option value="one">this account</option><option value="all">all accounts</option></select></label>
+    </div>
+    <div class="dlg-row">
+      <label>Amount from <input name="low" inputmode="decimal" autocomplete="off"></label>
+      <label>to <input name="high" inputmode="decimal" autocomplete="off"></label>
+      <label>Date from <input name="start" autocomplete="off" placeholder="MM/DD/YYYY"></label>
+      <label>to <input name="end" autocomplete="off" placeholder="MM/DD/YYYY"></label>
+    </div>
+    <p id="search-error" class="dlg-error hidden" role="alert"></p>
+    <div class="dlg-buttons">
+      <span id="search-count" class="dlg-count" aria-live="polite"></span>
+      <button type="button" id="search-close">Close</button>
+      <button type="submit" id="search-submit">Search</button>
+    </div>
+  </form>
+  <div id="search-results" class="results hidden">
+    <table><thead><tr><th>Date</th><th>Where</th><th>Description</th><th>Category</th><th class="num">Amount</th><th>Note</th></tr></thead>
+      <tbody id="search-rows"></tbody></table>
+  </div>
+</dialog>
+<dialog id="dlg-transfer">
+  <form id="form-transfer">
+    <h2>Transfer</h2>
+    <p class="dlg-note">Adds one row to each account. The two stay linked: changing the date or amount of one
+      changes the other, and deleting one deletes both.</p>
+    <label>From <select name="source"></select></label>
+    <label>To <select name="target"></select></label>
+    <label>Date <input name="date" required autocomplete="off"></label>
+    <label>Amount <input name="amount" required inputmode="decimal" placeholder="0.00" autocomplete="off"></label>
+    <label>Description <input name="description" maxlength="200" autocomplete="off"
+        placeholder="Transfer to … / Transfer from …"></label>
+    <label>Note <input name="note" maxlength="500" autocomplete="off"></label>
+    <p id="transfer-error" class="dlg-error hidden" role="alert"></p>
+    <div class="dlg-buttons">
+      <button type="button" id="transfer-cancel">Cancel</button>
+      <button type="submit" id="transfer-submit">Add transfer</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="dlg-export">
+  <form id="form-export">
+    <h2>Export</h2>
+    <p class="dlg-note">Downloads every sheet as CSV, plus <code>import.json</code> to import it back exactly.
+      The file is your data, decrypted: keep it safe and delete it when you no longer need it.</p>
+    <label>Password <input name="password" type="password" required autocomplete="current-password"></label>
+    <p id="export-error" class="dlg-error hidden"></p>
+    <div class="dlg-buttons">
+      <button type="button" id="export-cancel">Cancel</button>
+      <button type="submit" id="export-submit">Download</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="dlg-security">
+  <form id="form-password">
+    <h2>Change password</h2>
+    <p class="dlg-note">Everything is encrypted again under the new password, which takes a few seconds, and you
+      are logged out everywhere. If the new password is lost, the data cannot be recovered.</p>
+    <label>Current password <input name="current" type="password" required autocomplete="current-password"></label>
+    <label>New password <input name="fresh" type="password" required maxlength="256" autocomplete="new-password"></label>
+    <label>New password again <input name="repeat" type="password" required maxlength="256" autocomplete="new-password"></label>
+    <p id="password-error" class="dlg-error hidden" role="alert"></p>
+    <div class="dlg-buttons">
+      <button type="submit" id="password-submit">Change password</button>
+    </div>
+  </form>
+  <hr>
+  <h2>Sessions</h2>
+  <p class="dlg-note">Ends every login, in every browser, this one included.</p>
+  <div class="dlg-buttons">
+    <button type="button" id="security-close">Close</button>
+    <button type="button" id="logout-all">Log out everywhere</button>
+  </div>
+</dialog>
+</body>
+</html>

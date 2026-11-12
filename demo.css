@@ -1,0 +1,19 @@
+/* account-register demo: the notice above the toolbar. Everything else is the app's own grid.css. */
+.demo-notice {
+  flex: none;
+  margin: 0;
+  padding: 6px 12px;
+  background: #5c4a12;
+  color: #fff3c4;
+  border-bottom: 1px solid #8a6d1a;
+  line-height: 1.4;
+}
+.demo-notice b { color: #fff; }
+:root[data-theme="light"] .demo-notice { background: #fff4c2; color: #4a3b00; border-bottom-color: #e0c060; }
+:root[data-theme="light"] .demo-notice b { color: #000; }
+/* shown unless demo-api.js got as far as starting the page (it marks the root element then) */
+.demo-failed { flex: none; margin: 0; padding: 16px 12px; font-weight: 600; }
+:root.demo-started .demo-failed { display: none; }
+@media print {
+  .demo-notice { display: none; }
+}

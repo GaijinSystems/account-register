@@ -1,4 +1,4 @@
-// Written by tools/build_demo.py from the app's Python modules (version 1.0.0). Not edited by hand.
+// Written by _demo/build_demo.py from the app's Python modules (version 1.0.0). Not edited by hand.
 "use strict";
 window.REGISTER_DEMO_SPEC = {
  "version": "1.0.0",

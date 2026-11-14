@@ -6,9 +6,9 @@
 // Nothing is sent anywhere and nothing is stored: a reload builds the starting data again.
 //
 // The routes, the argument types, the field names, the patterns and the limits are not repeated
-// here. They come from window.REGISTER_DEMO_SPEC (demo-spec.js), which tools/build_demo.py
+// here. They come from window.REGISTER_DEMO_SPEC (demo-spec.js), which _demo/build_demo.py
 // writes from the app's own Python modules, so they cannot drift. What is ported by hand is the
-// behaviour and the wording of the error messages; tools/demo_differential.py compares both
+// behaviour and the wording of the error messages; _demo/demo_differential.py compares both
 // with the real backend.
 "use strict";
 (() => {
@@ -861,7 +861,7 @@
       try {
         if (!validText(body)) fail("bad_request", "the request contains text that is not valid Unicode");
         refused = hasBalance(body);
-      } catch (e) { // the browser's own limit; Python's is lower (see demo/README.md)
+      } catch (e) { // the browser's own limit; Python's is lower (see _demo/README.md)
         // too deep for the browser's stack: a RangeError, or Firefox's InternalError
         if (e instanceof RangeError || e.name === "InternalError") fail("bad_request", "body is nested too deeply");
         throw e;
@@ -933,7 +933,7 @@
   }
 
   // ---------------------------------------------------------------- the starting data
-  // The same kind of made-up household as tools/demo_home.py, but dated from today backwards
+  // The same kind of made-up household as tools/demo_home.py on main, but dated from today backwards
   // (last year and this year), so the demo never looks stale and a transfer dated today always
   // has a year tab to go in. The amounts come from a fixed seed: every reload gives the same data.
 

@@ -40,7 +40,7 @@
   try {
     Object.defineProperty(document, "cookie", { get: () => "", set() {}, enumerable: true, configurable: true });
   } catch (e) { /* left as it is: nothing writes it */ }
-  // demo/api.js starts the page's own script only when it sees this: if this file did not
+  // demo-api.js starts the page's own script only when it sees this: if this file did not
   // load, grid.js never starts, so nothing is written to the browser's real storage.
   window.REGISTER_DEMO_NOSTORE = true;
 })();

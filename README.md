@@ -654,10 +654,6 @@ tools/demo_home.py        creates a home with made-up data (password "demo")
 tools/demo_app.py         starts the app on a demo home, for the two browser tools below
 tools/screenshots.py      retakes docs/screenshots from the demo home, in a headless browser
 tools/a11y_audit.py       runs the axe-core accessibility checks on every page and dialog
-demo/                     the static demo: an in-memory stand-in for the server (demo/README.md)
-tools/build_demo.py       builds the demo site from the app's own page
-tools/check_demo.py       drives the built demo in a headless browser; checks nothing is stored or sent
-tools/demo_differential.py  compares the demo's answers with the real backend's
 docs/DESIGN.md            how it is put together, and why
 docs/screenshots/         the pictures in this README (made-up data)
 SECURITY.md               where it's meant to run, what is and isn't protected, reporting
@@ -667,3 +663,7 @@ LICENSE                   GNU AGPL, version 3
 examples/                 sample import config
 tests/                    unittest suite
 ```
+
+The demo site and its sources are on the `gh-pages` branch: the built site at the top, and
+the in-memory stand-in for the server and the tools that build and check it in `_demo/`
+(see `_demo/README.md` there).

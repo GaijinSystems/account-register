@@ -36,9 +36,11 @@ python3 -m register run --home /tmp/register-demo  # http://127.0.0.1:8000
 the Security dialog in headless Chromium. It needs Playwright for Python, with Chromium, and
 `cryptography`. Never take screenshots of real data.
 
-The demo site (`demo/`, built by `tools/build_demo.py`) runs the real page against a
-JavaScript port of the backend. After changing what an operation does or returns, change
-`demo/api.js` to match and run `tools/demo_differential.py`, which compares the two.
+The demo site runs the real page against a JavaScript port of the backend. It and its tools
+are on the `gh-pages` branch, in `_demo/`, and nothing on `main` depends on them. After
+changing the page or what an operation does or returns, update `_demo/api.js` there to match,
+run `_demo/demo_differential.py`, which compares the two, and rebuild the site
+(`_demo/README.md` says how).
 
 `tools/a11y_audit.py PATH/TO/axe.min.js` runs the axe-core accessibility checks on every page
 and dialog, in both themes and at phone width. It should report no violations; run it after

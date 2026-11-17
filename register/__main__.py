@@ -7,6 +7,8 @@
                                                   shows a preview and asks before writing
     register.pyz import-template FILE [--output CONFIG.json]   the guessed config, to edit
     register.pyz export          --home DIR OUTDIR   every sheet as CSV + a config to re-import it
+    register.pyz tidy-names      --home DIR       merge spellings of the same payee or category;
+                                                  asks about every change (the app must be stopped)
     register.pyz show            --home DIR PATH [--rev COMMIT]   decrypted file
     register.pyz history         --home DIR PATH [-n N]           decrypted changes
     register.pyz textconv        --home DIR FILE  git diff driver (uses REGISTER_PASSWORD)
@@ -383,6 +385,280 @@ def cmd_textconv(args):
     sys.stdout.write("".join(line + "\n" for line in lines))
 
 
+def _app_running(home):
+    """True if the recorder answers on its socket, False if there is none (or only a stale file
+    left by a crash). Exits if it cannot tell."""
+    import socket
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(5)
+    try:
+        s.connect(str(home.socket_path))
+        return True
+    except (FileNotFoundError, ConnectionRefusedError):
+        return False
+    except OSError as e:
+        sys.exit("error: cannot tell whether the app is running (%s); stop it, then try again" % e)
+    finally:
+        s.close()
+
+
+def _plural(name_field):
+    return {"description": "descriptions", "category": "categories"}[name_field]
+
+
+def _shown(text):
+    """A spelling for the terminal: quoted when spaces at either end would otherwise be invisible."""
+    return repr(text) if text != text.strip() else text
+
+
+def _list_names(names):
+    from .core.tidy import count
+    width = min(max(len(_shown(n.text)) for n in names), 40)
+    for i, n in enumerate(names, 1):
+        dates = "no date" if not n.first else n.first if n.first == n.last else "%s .. %s" % (n.first, n.last)
+        print("  %2d. %-*s  %9s   (%s)" % (i, width, _shown(n.text), count(n.rows, "row"), dates))
+
+
+def _show_group(group, number, total):
+    from .core.tidy import count
+    where = "%s in %s" % (count(group.rows, "row"), count(len(group.accounts), "account"))
+    print()
+    if group.kind == "exact":
+        print("Group %d of %d: %s" % (number, total, where))
+    else:
+        print("Similar names (%s), %d of %d: %s" % (group.kind, number, total, where))
+    _list_names(group.names)
+
+
+class _Stop(Exception):
+    """q, or the end of input: no more questions, straight to the summary."""
+
+
+def _answer(question):
+    try:
+        return input(question).strip()
+    except EOFError:
+        print()
+        raise _Stop from None
+
+
+def _yes(question):
+    return _answer(question + " [y/N] ").lower() in ("y", "yes")
+
+
+def _numbers(answer, count):
+    """The numbers in an answer like "1 3", or None if it is not one."""
+    try:
+        chosen = sorted({int(x) for x in answer.replace(",", " ").split()})
+    except ValueError:
+        return None
+    return chosen if chosen and all(1 <= c <= count for c in chosen) else None
+
+
+def _which_are_the_same(names):
+    """A candidate group's members that are one name, chosen by number: a list, or None to skip."""
+    while True:
+        answer = _answer("Which are the same? [numbers, e.g. 1 2; a = all; s = skip; q = stop asking] ").lower()
+        if answer in ("", "s"):
+            return None
+        if answer == "q":
+            raise _Stop
+        if answer == "a":
+            return list(names)
+        chosen = _numbers(answer, len(names))
+        if chosen is None:
+            print("  answer with numbers from 1 to %d, a, s or q" % len(names))
+        elif len(chosen) < 2:
+            return None
+        else:
+            return [names[c - 1] for c in chosen]
+
+
+def _typed_spelling(args, plan, names):
+    """A spelling typed by hand for names, validated; None if it was not confirmed."""
+    from .core import formats, tidy
+    while True:
+        text = _answer("New spelling: ")
+        if not text:
+            return None
+        try:
+            text = tidy.check_spelling(args.field, text)
+        except formats.FieldError as e:
+            print("  %s: %s" % (args.field, e.message))
+            continue
+        if text in plan.names and plan.names[text] not in names:
+            return text if _yes("  %s is another name in the register. Merge into it?" % _shown(text)) else None
+        same = max((n for n in plan.names.values()
+                    if n.text != text and tidy.key(n.text) == tidy.key(text) and n not in names),
+                   key=lambda n: n.rows, default=None)
+        if same is not None and _yes("  %s is already a name here. Use that spelling?" % _shown(same.text)):
+            return same.text
+        if tidy.key(text) in {tidy.key(n.text) for n in names} or \
+                _yes("  Note: that is a new name, not another spelling of these. Use it?"):
+            return text
+
+
+def _keep_which(args, plan, names):
+    """Ask which spelling the names become, and record it in plan (or nothing, if skipped)."""
+    from .core import formats, tidy
+    while True:
+        answer = _answer("Keep which? [1-%d, t = type another, s = skip, q = stop asking] " % len(names))
+        lowered = answer.lower()
+        if lowered in ("", "s"):
+            return
+        if lowered == "q":
+            raise _Stop
+        if lowered == "t":
+            keep = _typed_spelling(args, plan, names)
+            if keep is None:
+                continue
+        else:
+            chosen = _numbers(answer, len(names))
+            if chosen is None or len(chosen) != 1:
+                print("  answer with one number from 1 to %d, t, s or q" % len(names))
+                continue
+            keep = names[chosen[0] - 1].text
+        if args.field == "category" and len({tidy.is_transfer_category(n.text) for n in names}
+                                            | {tidy.is_transfer_category(keep)}) > 1 \
+                and not _yes("  Note: reports leave the %s category out, so this changes what they count. "
+                             "Go ahead?" % formats.TRANSFER_CATEGORY):
+            continue
+        try:
+            plan.merge([n.text for n in names], keep)
+        except ValueError as e:
+            print("  %s; choose another" % e)
+            continue
+        return
+
+
+def _ask_groups(args, plan, groups):
+    for i, group in enumerate(groups, 1):
+        _show_group(group, i, len(groups))
+        names = group.names
+        if group.kind != "exact":
+            names = _which_are_the_same(names)
+            if names is None:
+                continue
+            if len(names) < len(group.names):
+                _list_names(names)
+        _keep_which(args, plan, names)
+
+
+def _merge_by_hand(args, plan, threshold):
+    from .core import tidy
+    while _yes("\nMerge names by hand?"):
+        found = tidy.search(plan.names, _answer("Search for: "), threshold)[:20]
+        if len(found) < 2:
+            print("  %s" % ("one name matches; a merge needs two" if found else "no name matches"))
+            continue
+        _list_names(found)
+        names = _which_are_the_same(found)
+        if names is not None:
+            _keep_which(args, plan, names)
+
+
+def _tidy_options(args):
+    """(candidate kinds, threshold) from --fuzzy and --threshold, or exit."""
+    from .core import tidy
+    kinds = []
+    for kind in (args.fuzzy or "").split(","):
+        kind = kind.strip().lower()
+        if kind == "all":
+            kinds.extend(tidy.CANDIDATE_KINDS)
+        elif kind in tidy.CANDIDATE_KINDS:
+            kinds.append(kind)
+        elif kind:
+            sys.exit("error: --fuzzy takes %s or all, separated by commas" % ", ".join(tidy.CANDIDATE_KINDS))
+    kinds = [k for k in tidy.CANDIDATE_KINDS if k in kinds]  # the order they are offered in
+    if args.threshold is not None and not tidy.MIN_THRESHOLD <= args.threshold <= tidy.MAX_THRESHOLD:
+        sys.exit("error: --threshold must be between %.2f and %.2f" % (tidy.MIN_THRESHOLD, tidy.MAX_THRESHOLD))
+    if args.threshold is not None and "typos" not in kinds:
+        sys.exit("error: --threshold applies to --fuzzy typos")
+    return kinds, tidy.DEFAULT_THRESHOLD if args.threshold is None else args.threshold
+
+
+def cmd_tidy_names(args):
+    from .core import tidy
+    from .core.store import Store, StoreError, locked
+    kinds, threshold = _tidy_options(args)
+    home = _home(args)
+    if not args.dry_run and not sys.stdin.isatty():
+        sys.exit("error: tidy-names asks about every change, so it needs a terminal (or use --dry-run)")
+    if _app_running(home):
+        sys.exit("error: the app is running; stop it first (for example: systemctl --user stop "
+                 "register-web register-recorder), then run tidy-names again")
+    key = _unlock(home)
+    try:
+        with locked(home):
+            if _app_running(home):  # started while the password was being asked for
+                sys.exit("error: the app was started; stop it, then run tidy-names again")
+            store = Store(home, key)
+            store.require_clean()
+            with store.cached():  # each sheet is decrypted once, however often it is read
+                names = tidy.read_names(store, args.field)
+                plan = tidy.Plan(names)
+                exact = tidy.exact_groups(plan.names)
+                if args.dry_run:
+                    _tidy_dry_run(args, plan, exact, kinds, threshold)
+                    return
+                if not exact and not kinds:
+                    print("No %s differ only in case, spaces or punctuation." % _plural(args.field))
+                try:
+                    _ask_groups(args, plan, exact)
+                    for groups in tidy.candidate_rounds(plan.names, kinds, threshold):
+                        _ask_groups(args, plan, groups)
+                    _merge_by_hand(args, plan, threshold if "typos" in kinds else None)
+                except _Stop:
+                    pass
+                except KeyboardInterrupt:
+                    sys.exit("\nInterrupted; nothing was written.")
+                if not plan:
+                    print("\nNothing to change; nothing was written.")
+                    return
+                files, result = tidy.changes(store, args.field, plan.into)
+            print("\nThese %s change:" % _plural(args.field))
+            for old in sorted(plan.into, key=str.casefold):
+                print("  %s -> %s   (%s)" % (_shown(old), _shown(plan.into[old]), tidy.count(names[old].rows, "row")))
+            templates = ", and %s" % tidy.count(result.templates, "recurring template") if result.templates else ""
+            print("%s in %s%s, in one commit." % (tidy.count(result.rows, "row"), tidy.count(result.sheets, "sheet"),
+                                                  templates))
+            try:
+                write = _yes("Write these changes?")
+            except (_Stop, KeyboardInterrupt):
+                write = False
+            if not write:
+                print("\nNothing was written.")
+                return
+            # Ctrl-C now could stop between replacing the files and committing them; git, started
+            # from here, ignores it too
+            interrupt = signal.signal(signal.SIGINT, signal.SIG_IGN)
+            try:
+                store.write_files(files, result.message)
+            finally:
+                signal.signal(signal.SIGINT, interrupt)
+            print("Written: %s." % result.message)
+            if args.field == "description" and not all(tidy.import_still_matches(old, new)
+                                                       for old, new in plan.into.items()):
+                print("Note: importing an old bank file again whose rows have no transaction ids (QIF, "
+                      "typically) could add renamed rows a second time: those rows are matched by date, "
+                      "amount and description, and some descriptions now differ by more than case or spacing.")
+    except StoreError as e:
+        sys.exit("error: %s" % e.message)
+
+
+def _tidy_dry_run(args, plan, exact, kinds, threshold):
+    """Every group the run would offer, with no questions; nothing is written."""
+    from .core import tidy
+    batches = [exact] + list(tidy.candidate_rounds(plan.names, kinds, threshold))
+    if not any(batches):
+        print("No %s to merge%s." % (_plural(args.field), "" if kinds else " (differing only in case, spaces or "
+                                                                          "punctuation)"))
+    for batch in batches:
+        for i, group in enumerate(batch, 1):
+            _show_group(group, i, len(batch))
+    print("\ndry run: nothing was written")
+
+
 def cmd_import_template(args):
     from .core import template
     out = Path(args.output) if args.output else None
@@ -479,14 +755,15 @@ getting started (first time, from nothing to live):
   5. open the site and log in with the password: logging in unlocks the data
 
 later: change-password, add-account, show / history (decrypted), import --replace,
-       export (every sheet as CSV, with a config that imports it back exactly)
+       export (every sheet as CSV, with a config that imports it back exactly),
+       tidy-names (merge spellings of one payee or category; the app must be stopped)
 every command has its own help: register.pyz COMMAND --help
 """
 
 
 # Everything that reads, writes or unlocks data needs the cryptography package.
 NEEDS_CRYPTO = {"init", "change-password", "add-account", "import", "export", "show", "history", "textconv",
-                "recorder"}
+                "recorder", "tidy-names"}
 MISSING_CRYPTO = ("Python's 'cryptography' package is not installed. It is required to encrypt and read\n"
                   "the data. Install it with: apt install python3-cryptography   (Debian/Ubuntu)")
 
@@ -552,6 +829,15 @@ def main(argv=None):
                    help="csv (default) restores exactly; json is one file with everything; qif and ofx are "
                         "one file per account, for other programs")
     p.add_argument("--currency", default="USD", help="currency code written into ofx files (default USD)")
+    p = add("tidy-names", cmd_tidy_names, "merge spellings of the same payee or category, asking about each "
+                                          "(stop the app first)")
+    p.add_argument("--field", choices=["description", "category"], default="description",
+                   help="which names to tidy (default description)")
+    p.add_argument("--fuzzy", metavar="KINDS",
+                   help="also offer looser matches: numbers, order, contains, typos, or all (comma-separated)")
+    p.add_argument("--threshold", type=float,
+                   help="how close --fuzzy typos must be, 0.70 to 0.99 (default 0.88)")
+    p.add_argument("--dry-run", action="store_true", help="list what would be offered; ask nothing, write nothing")
     p = sub.add_parser("import-template", help="write the guessed import config for a file, to edit")
     p.add_argument("source", help=".ods, .xlsx or .csv file")
     p.add_argument("--output", help="write the config here (default: print it)")

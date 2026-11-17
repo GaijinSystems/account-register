@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0
+
+- `tidy-names` merges spellings of the same payee or category (`DD - Pizza Hut`,
+  `dd - pizza hut`, `DD -- pizza hut`), asking about every group and writing one commit at the
+  end. `--fuzzy` also offers looser matches (numbers, word order, a name that begins another,
+  typos), and `--field category` works on categories. It runs with the app stopped.
+- The README's install steps download `register.pyz` and its checksum from the latest release.
+- No change to the data format.
+
 ## 1.0.0
 
 The first public release.

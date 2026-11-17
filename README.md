@@ -47,6 +47,7 @@ All pictures show made-up data.
 - [Set up](#set-up)
 - [Import](#import)
 - [Export](#export)
+- [Tidy names](#tidy-names)
 - [Run](#run) and [HTTPS](#https)
 - [Using it](#using-it)
 - [Data and git](#data-and-git)
@@ -357,6 +358,51 @@ Only the default CSV export restores a register exactly.
   - If you open the CSVs in a spreadsheet, don't save them back: the spreadsheet may change
     dates, amounts or quoting, and text starting with `=` may be read as a formula.
 
+## Tidy names
+
+The same payee ends up under several spellings (`DD - Pizza Hut`, `dd - pizza hut`,
+`DD -- pizza hut`), and reports and suggestions then count it as several. `tidy-names` finds
+them and merges the ones you choose. Stop the app first; the command refuses to start while it
+is running.
+
+```
+./register.pyz tidy-names --home ~/register --dry-run                # what it would offer
+./register.pyz tidy-names --home ~/register                          # descriptions
+./register.pyz tidy-names --home ~/register --field category         # categories
+./register.pyz tidy-names --home ~/register --fuzzy all              # looser matches too
+```
+
+- **It asks about every group** and changes nothing on its own. It lists each group's
+  spellings with their row counts and dates; you keep one, type another, or skip. At the end
+  it shows every change and asks once more. The changes are written as one commit, or not at
+  all.
+- **Groups** are spellings that differ only in case, spaces or punctuation.
+- **`--fuzzy`** offers looser matches as well, after those, and for each one asks first which
+  of the names are really the same:
+
+  | Kind | Groups names when | Example |
+  |---|---|---|
+  | `numbers` | they are the same once whole numbers are left out | `Pizza Hut #4412` / `Pizza Hut` |
+  | `order` | they have the same words in another order | `Hut Pizza DD` / `DD Pizza Hut` |
+  | `contains` | one begins with all the words of the other | `Shell` / `Shell Oil` |
+  | `typos` | they are nearly the same letter for letter, with every word misspelt at most, not replaced or added (`--threshold`, default 0.88) | `Wallgreens` / `Walgreens`, not `MO income tax` / `US income tax` or `Walgreens Pharmacy` / `Walgreens US Pharmacy` |
+
+  `--fuzzy` takes one kind, several separated by commas, or `all`. A pair you skip is offered
+  again next time.
+- **Merging by hand:** at the end it offers a search, for names none of the groups caught.
+- **What changes:** the description (or category) of the chosen rows, and of recurring
+  transactions that use the old spelling. Nothing else in a row changes. The two rows of a
+  transfer and the opening balance keep their text.
+- **History** lists the merge on each sheet it changed. Undo from the page works only when it
+  changed a single sheet and no recurring transactions; otherwise it spans files, like an
+  import, and can't be undone there. The old spellings stay in the git history either way.
+- **Re-importing an old bank file** whose rows have no transaction ids (QIF, typically) after
+  renaming could add renamed rows again. Such rows are matched by date, amount and
+  description, ignoring case and spacing, so only a merge that changes more than that (`DD --
+  pizza hut` into `DD - Pizza Hut`) is affected. The command says so when it applies.
+- **`--fuzzy typos` compares every pair of names,** so on a register with many thousands of
+  different names it can take a minute.
+
 ## Run
 
 ```
@@ -664,7 +710,8 @@ build.py                  builds dist/register.pyz
 register/protocol.py      wire protocol shared by web and recorder (no core imports)
 register/throttle.py      wrong-password backoff shared by web logins and recorder unlocks
 register/core/            recorder side: formats, money, crypto, store, git, ledger, importer, export,
-                          recorder, admin (init, change-password, show, history, textconv)
+                          recorder, admin (init, change-password, show, history, textconv),
+                          tidy (tidy-names)
 register/web/             web side: WSGI app, auth, static UI, templates (never imports core)
 tools/inspect_ods.py      masked structure report for an .ods workbook
 tools/demo_home.py        creates a home with made-up data (password "demo")

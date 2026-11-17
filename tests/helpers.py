@@ -27,20 +27,27 @@ def make_home(test, password=PASSWORD):
     return home
 
 
-def run_import_cli(home, *argv, tty=False, answer=None):
-    """Run `register import --home HOME ...` in-process with the test password.
-    Returns (exit code, stdout + exit message, whether the y/N question was asked)."""
+def run_cli(home, command, *argv, tty=False, input=None):
+    """Run `register COMMAND --home HOME ...` in-process with the test password. input stands in
+    for builtins.input. Returns (exit code, stdout + exit message, how many questions were asked)."""
     out = io.StringIO()
-    argv = ["import", "--home", str(home.root)] + [str(a) for a in argv]
+    argv = [command, "--home", str(home.root)] + [str(a) for a in argv]
     with mock.patch.dict(os.environ, {"REGISTER_PASSWORD": PASSWORD}), contextlib.redirect_stdout(out), \
-            mock.patch("sys.stdin") as stdin, mock.patch("builtins.input", return_value=answer) as asked:
+            mock.patch("sys.stdin") as stdin, mock.patch("builtins.input", side_effect=input) as asked:
         stdin.isatty.return_value = tty
         try:
             cli.main(argv)
             code = 0
         except SystemExit as e:
             code, _ = e.code, out.write(str(e.code))
-    return code, out.getvalue(), asked.called
+    return code, out.getvalue(), asked.call_count
+
+
+def run_import_cli(home, *argv, tty=False, answer=None):
+    """`register import` with one answer to its y/N question. Returns (exit code, stdout + exit
+    message, whether the question was asked)."""
+    code, out, asked = run_cli(home, "import", *argv, tty=tty, input=lambda *_: answer)
+    return code, out, asked > 0
 
 
 def git_log(home):

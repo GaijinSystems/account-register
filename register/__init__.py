@@ -10,4 +10,4 @@ will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of M
 or FITNESS FOR A PARTICULAR PURPOSE. See the LICENSE file for details.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"

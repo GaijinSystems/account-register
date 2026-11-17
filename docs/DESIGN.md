@@ -159,6 +159,17 @@ Every write goes through `Store.write_files`:
   A new data format is adopted by exporting with the old version and importing into a new
   home; there are no in-place migrations.
 
+## Tidying names
+
+`tidy-names` merges spellings of one payee or category. It is a command line tool only, so
+the web process gains no way to rewrite rows in bulk, and it refuses to start while the
+recorder answers on its socket. It holds the write lock from reading to writing and changes
+nothing without an answer for each group: spellings with equal keys (case, spacing and
+punctuation ignored), and, only when asked for, looser candidates (`numbers`, `order`,
+`contains`, `typos`) whose members are chosen one by one, since loose matches chain. Transfer
+rows and opening balances are left alone; recurring templates follow the merge. Declined
+pairs are not remembered: that would need a new stored file.
+
 ## Testing
 
 - `python3 -m unittest discover -s tests`: the core, the recorder over a real socket, the
@@ -174,7 +185,8 @@ Every write goes through `Store.write_files`:
   private network.
 - A backup command or automatic pushes: the recorder holds the key and gets no network
   access. A backup is a `git push` of the encrypted repository.
-- Prebuilt releases, a container image, an installable web app, locale settings.
+- A container image, an installable web app, locale settings. (Releases are built by
+  `.github/workflows/release.yml` from the tagged source, after the tests pass.)
 - Split transactions (one payment across several categories). Adding them would need a new
   data format.
 - A third "reconciled" state for rows: reconciling ticks the existing X.

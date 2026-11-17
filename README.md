@@ -43,7 +43,7 @@ All pictures show made-up data.
 ## Contents
 
 - [Requirements](#requirements)
-- [Build](#build)
+- [Install](#install)
 - [Set up](#set-up)
 - [Import](#import)
 - [Export](#export)
@@ -65,7 +65,24 @@ and why), [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md).
   `apt install python3-cryptography`; often already installed).
 - **A reverse proxy for HTTPS** if you reach it from another machine; see [HTTPS](#https).
 
-## Build
+## Install
+
+Download `register.pyz` from the [latest release](https://github.com/GaijinSystems/account-register/releases/latest),
+check it against its checksum, and make it executable:
+
+```
+mkdir -p ~/bin && cd ~/bin
+curl -fLO https://github.com/GaijinSystems/account-register/releases/latest/download/register.pyz
+curl -fLO https://github.com/GaijinSystems/account-register/releases/latest/download/register.pyz.sha256
+sha256sum -c register.pyz.sha256 && chmod +x register.pyz
+```
+
+Every release is built from its tagged source by GitHub Actions, after the tests pass
+(`.github/workflows/release.yml`). The examples below assume the file is in `~/bin` and run
+from there. To upgrade, read the release notes first (a change of data format is noted
+there, with how to move the data), then stop the app, replace the file and start it again.
+
+To build it yourself instead:
 
 ```
 python3 build.py              # -> dist/register.pyz

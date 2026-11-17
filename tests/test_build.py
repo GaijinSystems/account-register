@@ -64,5 +64,13 @@ class BuildTest(unittest.TestCase):
             self.assertNotEqual(r.returncode, 0)
 
 
+
+class ChangelogTest(unittest.TestCase):
+    def test_changelog_has_the_current_version(self):
+        """A release takes its notes from this section; a version bump must add it."""
+        text = (Path(__file__).resolve().parent.parent / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("\n## %s\n" % register.__version__, text)
+
+
 if __name__ == "__main__":
     unittest.main()

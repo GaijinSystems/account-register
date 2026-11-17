@@ -15,20 +15,26 @@ a notice at the top of the page.
 
 ## Build and view
 
-The build needs only Python (standard library only), this folder, and a checkout of the
-`main` branch, named by `REGISTER_SOURCE`. The tools only read that checkout. To rebuild the
-published site, from the top of a `gh-pages` checkout:
+**Publishing is automatic.** Each release (a `vX.Y.Z` tag on `main`) runs
+`.github/workflows/release.yml` there: it builds the site from the tagged code with the tools
+in this folder, runs the checks below, and refuses to release if any of them fails. It then
+commits the site to this branch and publishes it, if that release is the newest. A change in
+this folder therefore reaches the site with the next release. When the demo is out of step with
+the app, the release stops at that point; fix `api.js` here and re-run the workflow.
 
-    REGISTER_SOURCE=PATH/TO/main python3 _demo/build_demo.py . --cname accountregister.gaijin.systems
+To build by hand (to preview a change, or to publish one between releases), you need Python
+(standard library only), this folder, and a checkout of the `main` branch, named by
+`REGISTER_SOURCE`. The tools only read that checkout. From the top of a `gh-pages` checkout:
 
-then commit the changed files on `gh-pages`. Build after every change on `main` to the page
-(`register/web/`) or to what an operation does, so the site shows the released app.
+    REGISTER_SOURCE=PATH/TO/main python3 _demo/build_demo.py .
 
-`OUTDIR` must be new, empty, or hold only files this build also writes, plus `.git` and this
-`_demo` folder (so the `CNAME` of an earlier `--cname` build stops a build without `--cname`):
-the build stops if it holds anything else, hidden files and subdirectories included. It
-writes eight files with relative URLs only
-(nine with `--cname DOMAIN`, which adds the `CNAME` file GitHub Pages wants). Put them on any
+and, to publish, commit the changed files on `gh-pages`. Pages then rebuilds the site.
+
+`OUTDIR` must be new, empty, or hold only files this build writes, plus the branch's own `.git`,
+`.gitignore`, `README.md`, `CNAME` and this `_demo` folder, which are left as they are (`CNAME`
+is rewritten with `--cname DOMAIN`). The build stops if it holds anything else, hidden files
+and subdirectories included. It writes eight files with relative URLs only (nine with
+`--cname`, which adds the `CNAME` file GitHub Pages wants). Put them on any
 static file host, in the root or under a sub-path, or look at them locally:
 
     python3 -m http.server --directory OUTDIR 8000      # then open http://127.0.0.1:8000/

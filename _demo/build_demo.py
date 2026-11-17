@@ -23,7 +23,9 @@ from register.web import app  # noqa: E402
 
 WEB = ROOT / "register" / "web"
 DEMO = Path(__file__).resolve().parent  # _demo/ on the gh-pages branch
-KEPT = {".git", DEMO.name}  # what OUTDIR may hold besides the build: the branch's own checkout
+# what OUTDIR may hold besides the build, left as it is: the gh-pages branch's own files (CNAME
+# is rewritten with --cname, and kept otherwise)
+KEPT = {".git", ".gitignore", DEMO.name, "README.md", "CNAME"}
 COPIED = tuple(app.STATIC)  # the app's own files (grid.js, grid.css, theme.js), byte for byte
 # (file in demo/, name in the site): the scripts in the order they load, all before theme.js
 SCRIPTS = (("nostore.js", "demo-nostore.js"), (None, "demo-spec.js"), ("api.js", "demo-api.js"))
@@ -163,7 +165,7 @@ def main(argv):
             files[name] = (DEMO / source).read_bytes()
     out.mkdir(parents=True, exist_ok=True)  # only now: every guard above has passed
     extra = sorted({p.name for p in out.iterdir()} - set(files) - KEPT)
-    if extra:  # e.g. the CNAME of an earlier build: it would be published with the rest
+    if extra:  # anything else would be published with the site
         sys.exit("build_demo: %s holds other files (%s); use an empty directory" % (out, ", ".join(extra)))
     for name, data in files.items():
         (out / name).write_bytes(data)

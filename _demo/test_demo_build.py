@@ -23,7 +23,13 @@ class DemoBuildTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):
             build_demo.main(["build_demo", tmp, "--cname", "demo.example.org"])
             files = {p.name: p.read_bytes() for p in Path(tmp).iterdir()}
-            with self.assertRaises(SystemExit):   # an earlier build's CNAME would be published too
+            # rebuilding in place, as in a gh-pages checkout: the branch's own files stay as they are
+            (Path(tmp) / "README.md").write_text("kept\n")
+            build_demo.main(["build_demo", tmp])
+            self.assertEqual((Path(tmp) / "CNAME").read_bytes(), b"demo.example.org\n")
+            self.assertEqual((Path(tmp) / "README.md").read_text(), "kept\n")
+            (Path(tmp) / "other.txt").write_text("x")
+            with self.assertRaises(SystemExit):   # anything else would be published with the site
                 build_demo.main(["build_demo", tmp])
         self.assertEqual(sorted(files), ["CNAME", "demo-api.js", "demo-nostore.js", "demo-spec.js", "demo.css",
                                          "grid.css", "grid.js", "index.html", "theme.js"])

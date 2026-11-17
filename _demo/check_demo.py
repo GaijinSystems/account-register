@@ -432,8 +432,9 @@ def main(argv):
     if len(argv) not in (2, 3):
         sys.exit(__doc__.strip())
     site = Path(argv[1]).resolve()
-    # the site's files: not .git or _demo/ when SITE is the gh-pages checkout (Pages publishes neither)
-    files = sorted(p.name for p in site.iterdir() if p.is_file() and not p.name.startswith((".", "_")))
+    # the site's files: not the gh-pages branch's own .git, _demo/ or README.md when SITE is a checkout
+    files = sorted(p.name for p in site.iterdir()
+                   if p.is_file() and not p.name.startswith((".", "_")) and p.name != "README.md")
     server, base = serve(site)
     asked, console = [], []
     with sync_playwright() as p:
